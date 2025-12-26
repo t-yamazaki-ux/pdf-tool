@@ -206,9 +206,9 @@ def process_pdf_in_memory(file_bytes):
 # --- Streamlit UI部分 ---
 
 def main():
-    st.set_page_config(page_title="床パネル自動描画ツール", layout="wide")
+    st.set_page_config(page_title="床パネル自動描画ツール", page_icon="📑", layout="wide")
 
-    st.title(f"📐 床パネル自動描画ツール {VERSION}")
+    st.title(f"📑 床パネル自動描画ツール {VERSION}")
     st.markdown("PDFファイルをアップロードすると、赤丸と境界線を描画してダウンロードできます。")
 
     # ファイルアップロード（複数可）
@@ -253,5 +253,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
