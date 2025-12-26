@@ -1,13 +1,23 @@
 import streamlit as st
 import fitz  # PyMuPDF
 import re
-import io  # メモリ上でファイルを扱うために必要
+import io
 
 # バージョン情報
-VERSION = "Ver14.18 (Web)"
+VERSION = "Ver14.20 (Web)"
 
+# --- 設定値 ---
+# 線の設定
+LINE_WIDTH = 3.0        # 線を細く (以前は6.0)
+LINE_OFFSET = 1.5       # 線の太さの半分 (以前は3.0) -> 重なり部分の調整用
+LINE_COLOR = (1, 0, 0)  # 赤色
 
-# --- ロジック部分（既存コードの関数） ---
+# 赤丸の設定
+CIRCLE_WIDTH = 1.0      # 線を細く (以前は1.5)
+CIRCLE_OPACITY = 0.5    # 不透明度50% (以前は0.3)
+CIRCLE_COLOR = (1, 0, 0)
+
+# --- ロジック部分 ---
 
 def extract_panels_with_pos(page):
     panels = []
@@ -59,7 +69,6 @@ def process_pdf_in_memory(file_bytes):
     """
     バイト列(PDFデータ)を受け取り、処理後のPDFデータをバイト列で返す関数
     """
-    # バイトストリームからPDFを開く
     doc = fitz.open(stream=file_bytes, filetype="pdf")
 
     full_sequence = []
@@ -114,19 +123,21 @@ def process_pdf_in_memory(file_bytes):
         if should_draw_h:
             y = 75 + (row_h * curr["row"]) + OFFSET_MAP.get(curr["row"], 0)
             xs, xe = (10, v_line_x) if curr["col"] == 0 else (v_line_x, w - 10)
-            page.draw_line((xs, y), (xe, y), color=(1, 0, 0), width=6, stroke_opacity=0.4)
+            
+            # 【変更点】線を細く、不透明度削除（くっきり赤）
+            page.draw_line((xs, y), (xe, y), color=LINE_COLOR, width=LINE_WIDTH)
             h_line_flags[(p_num, aid)] = True
 
         if len(curr["p_set"]) > 1:
             for p in curr["panels"]:
                 if p["pack_id"] != curr["min_p"]:
-                    # 丸は太さ1.5 / 不透明度0.3
+                    # 【変更点】赤丸 太さ1.0 / 不透明度50%
                     page.draw_circle(
                         p["center"],
                         25,
-                        color=(1, 0, 0),
-                        width=1.5,
-                        stroke_opacity=0.3
+                        color=CIRCLE_COLOR,
+                        width=CIRCLE_WIDTH,
+                        stroke_opacity=CIRCLE_OPACITY
                     )
 
     # 2. 縦境界線の描画
@@ -156,8 +167,7 @@ def process_pdf_in_memory(file_bytes):
             elif r > 0 and v_line_active[r - 1]:
                 v_line_active[r] = True
 
-            if r == 1 and h_line_flags.get((p_num, 4)) and h_line_flags.get((p_num, 2)) and not h_line_flags.get(
-                    (p_num, 5)):
+            if r == 1 and h_line_flags.get((p_num, 4)) and h_line_flags.get((p_num, 2)) and not h_line_flags.get((p_num, 5)):
                 v_line_active[r] = True
 
             # 斜め結合判定
@@ -186,12 +196,19 @@ def process_pdf_in_memory(file_bytes):
                     any_l_next = h_line_flags.get((p_num, r + 1)) or h_line_flags.get((p_num, r + 5))
 
                     if not any_p_curr and not any_p_next and not any_l_next:
-                        page.draw_line((v_x, gy(r) - 3), (v_x, gy(r) + 3), color=(1, 0, 0), width=6, stroke_opacity=0.4)
+                        # 【変更点】線を細く、不透明度削除、重なり(OFFSET)調整
+                        page.draw_line(
+                            (v_x, gy(r) - LINE_OFFSET), 
+                            (v_x, gy(r) + LINE_OFFSET), 
+                            color=LINE_COLOR, 
+                            width=LINE_WIDTH
+                        )
                         break
 
-                y_start = gy(r) - 3
-                y_end = gy(r + 1) + 3 if r < 3 else h - 25
-                page.draw_line((v_x, y_start), (v_x, y_end), color=(1, 0, 0), width=6, stroke_opacity=0.4)
+                # 【変更点】線を細く、不透明度削除、重なり(OFFSET)調整
+                y_start = gy(r) - LINE_OFFSET
+                y_end = gy(r + 1) + LINE_OFFSET if r < 3 else h - 25
+                page.draw_line((v_x, y_start), (v_x, y_end), color=LINE_COLOR, width=LINE_WIDTH)
 
     # 処理結果をメモリバッファに保存
     output_buffer = io.BytesIO()
@@ -206,12 +223,11 @@ def process_pdf_in_memory(file_bytes):
 # --- Streamlit UI部分 ---
 
 def main():
-    st.set_page_config(page_title="床パネル自動描画ツール", page_icon="📑", layout="wide")
+    st.set_page_config(page_title="床パネル自動描画ツール", layout="wide")
 
     st.title(f"📑 床パネル自動描画ツール {VERSION}")
     st.markdown("PDFファイルをアップロードすると、赤丸と境界線を描画してダウンロードできます。")
 
-    # ファイルアップロード（複数可）
     uploaded_files = st.file_uploader(
         "処理するPDFファイルを選択してください",
         type="pdf",
@@ -223,22 +239,14 @@ def main():
         st.write(f"📁 {len(uploaded_files)} 個のファイルが選択されました")
 
         for uploaded_file in uploaded_files:
-            # 各ファイルを処理
-            # Streamlitではファイル名が変わることがあるため、元のファイル名を使用
             original_filename = uploaded_file.name
 
             with st.spinner(f"処理中... {original_filename}"):
                 try:
-                    # アップロードされたファイルのバイトデータを読み込む
                     file_bytes = uploaded_file.read()
-
-                    # 処理実行
                     processed_pdf_io = process_pdf_in_memory(file_bytes)
-
-                    # ダウンロードボタンのファイル名作成
                     output_filename = f"床パネル書込済_{original_filename}"
 
-                    # ダウンロードボタン表示
                     st.success(f"完了: {original_filename}")
                     st.download_button(
                         label=f"⬇️ {output_filename} をダウンロード",
@@ -250,9 +258,5 @@ def main():
                 except Exception as e:
                     st.error(f"エラーが発生しました ({original_filename}): {e}")
 
-
 if __name__ == "__main__":
     main()
-
-
-
