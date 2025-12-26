@@ -4,17 +4,17 @@ import re
 import io
 
 # バージョン情報
-VERSION = "Ver14.20 (Web)"
+VERSION = "Ver14.21 (Web)"
 
 # --- 設定値 ---
 # 線の設定
-LINE_WIDTH = 3.0        # 線を細く (以前は6.0)
-LINE_OFFSET = 1.5       # 線の太さの半分 (以前は3.0) -> 重なり部分の調整用
-LINE_COLOR = (1, 0, 0)  # 赤色
+LINE_WIDTH = 3.0        # 線を細く
+LINE_OFFSET = 1.5       # 線の太さの半分 (3.0 / 2)
+LINE_COLOR = (1, 0, 0)  # 赤色 (不透明)
 
 # 赤丸の設定
-CIRCLE_WIDTH = 1.0      # 線を細く (以前は1.5)
-CIRCLE_OPACITY = 0.5    # 不透明度50% (以前は0.3)
+CIRCLE_WIDTH = 1.0      # 線を細く
+CIRCLE_OPACITY = 1.0    # 【変更】不透明 (100%)
 CIRCLE_COLOR = (1, 0, 0)
 
 # --- ロジック部分 ---
@@ -124,14 +124,14 @@ def process_pdf_in_memory(file_bytes):
             y = 75 + (row_h * curr["row"]) + OFFSET_MAP.get(curr["row"], 0)
             xs, xe = (10, v_line_x) if curr["col"] == 0 else (v_line_x, w - 10)
             
-            # 【変更点】線を細く、不透明度削除（くっきり赤）
+            # 線: 不透明
             page.draw_line((xs, y), (xe, y), color=LINE_COLOR, width=LINE_WIDTH)
             h_line_flags[(p_num, aid)] = True
 
         if len(curr["p_set"]) > 1:
             for p in curr["panels"]:
                 if p["pack_id"] != curr["min_p"]:
-                    # 【変更点】赤丸 太さ1.0 / 不透明度50%
+                    # 【変更点】赤丸: 不透明(opacity=1.0)
                     page.draw_circle(
                         p["center"],
                         25,
@@ -196,7 +196,7 @@ def process_pdf_in_memory(file_bytes):
                     any_l_next = h_line_flags.get((p_num, r + 1)) or h_line_flags.get((p_num, r + 5))
 
                     if not any_p_curr and not any_p_next and not any_l_next:
-                        # 【変更点】線を細く、不透明度削除、重なり(OFFSET)調整
+                        # 線: 不透明
                         page.draw_line(
                             (v_x, gy(r) - LINE_OFFSET), 
                             (v_x, gy(r) + LINE_OFFSET), 
@@ -205,7 +205,7 @@ def process_pdf_in_memory(file_bytes):
                         )
                         break
 
-                # 【変更点】線を細く、不透明度削除、重なり(OFFSET)調整
+                # 線: 不透明
                 y_start = gy(r) - LINE_OFFSET
                 y_end = gy(r + 1) + LINE_OFFSET if r < 3 else h - 25
                 page.draw_line((v_x, y_start), (v_x, y_end), color=LINE_COLOR, width=LINE_WIDTH)
